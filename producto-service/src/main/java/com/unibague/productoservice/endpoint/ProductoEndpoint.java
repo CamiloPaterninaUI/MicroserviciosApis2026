@@ -19,7 +19,8 @@ public class ProductoEndpoint {
     @ResponsePayload
     public GetProductoResponse getProducto(@RequestPayload GetProductoRequest request) {
         GetProductoResponse response = new GetProductoResponse();
-        var p = repository.buscarPorId(request.getId());
+        var p = repository.findById(request.getId())
+                .orElseThrow(() -> new RuntimeException("Producto no encontrado con id " + request.getId()));
 
         Producto producto = new Producto();
         producto.setId(p.getId());
