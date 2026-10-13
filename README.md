@@ -96,7 +96,9 @@ curl -s -X POST http://localhost:8080/ws \
 
 ## Postman
 
-Importe `postman/Tienda_Deportiva_v2.postman_collection.json` y `postman/Tienda_Deportiva_v2.postman_environment.json`, seleccione el ambiente "Tienda Deportiva v2.0 - Local" y ejecute la colección en orden con Runner (también funciona con `newman`):
+**Prueba manual:** sigue la guía paso a paso de [`GUIA_PRUEBAS_POSTMAN.md`](GUIA_PRUEBAS_POSTMAN.md) — URLs, bodies JSON válidos y códigos esperados de todos los endpoints.
+
+**Prueba automatizada:** importe `postman/Tienda_Deportiva_v2.postman_collection.json` y `postman/Tienda_Deportiva_v2.postman_environment.json`, seleccione el ambiente "Tienda Deportiva v2.0 - Local" y ejecute la colección en orden con Runner (también funciona con `newman`):
 
 ```bash
 newman run postman/Tienda_Deportiva_v2.postman_collection.json -e postman/Tienda_Deportiva_v2.postman_environment.json
@@ -136,6 +138,7 @@ mvn -B -pl api-gateway -am spring-boot:run        # 8080
 
 ## Documentación
 
+- `GUIA_PRUEBAS_POSTMAN.md` — guía de pruebas manuales en Postman para cualquiera que levante el proyecto.
 - `IMPLEMENTATION_NOTES.md` — matriz de auditoría y todas las correcciones documentadas.
 - `VALIDATION_REPORT.md` — evidencia de cada verificación ejecutada.
 - `FINAL_TEST_REPORT.md` — informe final de la validación integral.
