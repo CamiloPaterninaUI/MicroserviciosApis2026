@@ -1,0 +1,67 @@
+name: Tienda Deportiva v2.0 CI-CD
+
+on:
+  push:
+    branches: [ main, taller02-evolucion ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Configure Java 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Compile and test
+        run: mvn -B clean verify
+
+  docker:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        service: [api-gateway, auth-service, user-service, producto-service, pedido-service]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # GHCR exige nombres de imagen en minusculas; el dueño
+      # (CamiloPaterninaUI) se normaliza antes de construir los tags.
+      - name: Determine lowercase image owner
+        id: owner
+        run: echo "name=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./${{ matrix.service }}/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ steps.owner.outputs.name }}/tienda-${{ matrix.service }}:latest
+            ghcr.io/${{ steps.owner.outputs.name }}/tienda-${{ matrix.service }}:${{ github.sha }}

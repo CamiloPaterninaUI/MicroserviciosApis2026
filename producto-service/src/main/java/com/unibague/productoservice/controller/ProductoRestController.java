@@ -1,27 +1,56 @@
 package com.unibague.productoservice.controller;
 
-import com.unibague.productoservice.model.Producto;
-import com.unibague.productoservice.repository.ProductoRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.unibague.productoservice.dto.ProductoRequest;
+import com.unibague.productoservice.dto.ProductoResponse;
+import com.unibague.productoservice.service.ProductoService;
+import com.unibague.productoservice.exception.ResourceNotFoundException;
+
+import io.swagger.v3.oas.annotations.Operation;
+import jakarta.validation.Valid;
+
+/**
+ * API REST del catalogo. Conserva los endpoints originales
+ * (GET lista, GET por id, POST crear) pero con DTOs, validacion
+ * y codigos HTTP correctos. La seguridad (JWT + rol ADMIN para crear)
+ * se aplica en SecurityConfig.
+ */
 @RestController
 @RequestMapping("/api/productos")
 public class ProductoRestController {
 
-    @Autowired
-    private ProductoRepository repository;
+    private final ProductoService productoService;
+
+    public ProductoRestController(ProductoService productoService) {
+        this.productoService = productoService;
+    }
 
     @GetMapping
-    public List<Producto> listar() { return repository.findAll(); }
+    @Operation(summary = "Lista todos los productos del catalogo")
+    public List<ProductoResponse> listar() {
+        return productoService.listar();
+    }
 
     @GetMapping("/{id}")
-    public Producto buscarPorId(@PathVariable int id) {
-        return repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Producto no encontrado con id " + id));
+    @Operation(summary = "Consulta un producto por id (404 si no existe)")
+    public ProductoResponse buscarPorId(@PathVariable int id) {
+        return productoService.buscarPorId(id);
     }
 
     @PostMapping
-    public Producto crear(@RequestBody Producto producto) { return repository.save(producto); }
+    @Operation(summary = "Crea un producto nuevo (solo ADMIN)")
+    public ResponseEntity<ProductoResponse> crear(@Valid @RequestBody ProductoRequest request) {
+        ProductoResponse creado = productoService.crear(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(creado);
+    }
 }

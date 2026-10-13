@@ -1,15 +1,17 @@
-# Maven
-target/
-*.class
+# Llaves RSA generadas localmente (scripts/generate-rsa-keys.sh): no se publican.
+auth-service/src/main/resources/keys/*.pem
+user-service/src/main/resources/keys/*.pem
+producto-service/src/main/resources/keys/*.pem
+pedido-service/src/main/resources/keys/*.pem
+.keys-tmp/
 
-# IDE
+# Compilados e IDEs
+**/target/
 .idea/
-*.iml
 .vscode/
-.classpath
-.project
-.settings/
-
-# OS
+*.iml
+.env
 .DS_Store
-Thumbs.db
+
+# SOAP: clases generadas por el plugin JAXB (se regeneran en cada build)
+producto-service/target/generated-sources/

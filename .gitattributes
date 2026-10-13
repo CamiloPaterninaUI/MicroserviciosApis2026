@@ -1,0 +1,11 @@
+# Los scripts de shell conservan LF para Git Bash / Linux.
+*.sh text eol=lf
+
+*.java text
+*.xml text
+*.xsd text
+*.yml text
+*.yaml text
+*.sql text
+*.properties text
+*.md text

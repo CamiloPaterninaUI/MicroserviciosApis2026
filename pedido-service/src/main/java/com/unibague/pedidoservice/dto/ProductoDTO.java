@@ -1,17 +1,28 @@
 package com.unibague.pedidoservice.dto;
 
-public class ProductoDTO {
-    private int id;
-    private String nombre;
-    private double precio;
-    private int stock;
+import java.math.BigDecimal;
 
-    public int getId() { return id; }
-    public void setId(int id) { this.id = id; }
+/**
+ * Vista del producto que expone producto-service por REST y que este
+ * servicio consume. El precio viaja como BigDecimal (JSON numerico),
+ * reemplazando el double original.
+ */
+public class ProductoDTO {
+
+    private Integer id;
+    private String nombre;
+    private BigDecimal precio;
+    private Integer stock;
+
+    public Integer getId() { return id; }
+    public void setId(Integer id) { this.id = id; }
+
     public String getNombre() { return nombre; }
     public void setNombre(String nombre) { this.nombre = nombre; }
-    public double getPrecio() { return precio; }
-    public void setPrecio(double precio) { this.precio = precio; }
-    public int getStock() { return stock; }
-    public void setStock(int stock) { this.stock = stock; }
+
+    public BigDecimal getPrecio() { return precio; }
+    public void setPrecio(BigDecimal precio) { this.precio = precio; }
+
+    public Integer getStock() { return stock; }
+    public void setStock(Integer stock) { this.stock = stock; }
 }

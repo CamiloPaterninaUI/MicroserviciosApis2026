@@ -1,0 +1,42 @@
+server:
+  port: 8084
+
+spring:
+  application:
+    name: pedido-service
+  datasource:
+    url: ${PEDIDOS_DB_URL:jdbc:postgresql://localhost:5436/pedidos_db}
+    username: ${PEDIDOS_DB_USERNAME:postgres}
+    password: ${PEDIDOS_DB_PASSWORD:postgres}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+  jackson:
+    default-property-inclusion: non_null
+
+app:
+  jwt:
+    public-key: classpath:keys/public.pem
+
+# Direccion del producto-service: configurable (antes estaba quemada
+# http://localhost:8081). En Docker se inyecta por variable de entorno.
+producto:
+  service:
+    url: ${PRODUCTO_SERVICE_URL:http://localhost:8083/api/productos/}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
