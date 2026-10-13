@@ -1,0 +1,171 @@
+services:
+
+  auth-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "5433:5432"
+    volumes:
+      - auth-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d auth_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+    networks:
+      - tienda-net
+
+  users-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: users_db
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "5434:5432"
+    volumes:
+      - users-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d users_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+    networks:
+      - tienda-net
+
+  productos-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: productos_db
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "5435:5432"
+    volumes:
+      - productos-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d productos_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+    networks:
+      - tienda-net
+
+  pedidos-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: pedidos_db
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "5436:5432"
+    volumes:
+      - pedidos-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d pedidos_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+    networks:
+      - tienda-net
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: auth-service/Dockerfile
+    environment:
+      AUTH_DB_URL: jdbc:postgresql://auth-db:5432/auth_db
+      AUTH_DB_USERNAME: ${POSTGRES_USER:-postgres}
+      AUTH_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      DEMO_USERS_ENABLED: "true"
+    ports:
+      - "8081:8081"
+    depends_on:
+      auth-db:
+        condition: service_healthy
+    networks:
+      - tienda-net
+
+  user-service:
+    build:
+      context: .
+      dockerfile: user-service/Dockerfile
+    environment:
+      USER_DB_URL: jdbc:postgresql://users-db:5432/users_db
+      USER_DB_USERNAME: ${POSTGRES_USER:-postgres}
+      USER_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "8082:8082"
+    depends_on:
+      users-db:
+        condition: service_healthy
+    networks:
+      - tienda-net
+
+  producto-service:
+    build:
+      context: .
+      dockerfile: producto-service/Dockerfile
+    environment:
+      PRODUCTOS_DB_URL: jdbc:postgresql://productos-db:5432/productos_db
+      PRODUCTOS_DB_USERNAME: ${POSTGRES_USER:-postgres}
+      PRODUCTOS_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "8083:8083"
+    depends_on:
+      productos-db:
+        condition: service_healthy
+    networks:
+      - tienda-net
+
+  pedido-service:
+    build:
+      context: .
+      dockerfile: pedido-service/Dockerfile
+    environment:
+      PEDIDOS_DB_URL: jdbc:postgresql://pedidos-db:5432/pedidos_db
+      PEDIDOS_DB_USERNAME: ${POSTGRES_USER:-postgres}
+      PEDIDOS_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      # Antes la URL estaba quemada; ahora se inyecta por entorno.
+      PRODUCTO_SERVICE_URL: http://producto-service:8083/api/productos/
+    ports:
+      - "8084:8084"
+    depends_on:
+      pedidos-db:
+        condition: service_healthy
+      producto-service:
+        condition: service_started
+    networks:
+      - tienda-net
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
+    environment:
+      AUTH_SERVICE_URL: http://auth-service:8081
+      USER_SERVICE_URL: http://user-service:8082
+      PRODUCTO_SERVICE_URL: http://producto-service:8083
+      PEDIDO_SERVICE_URL: http://pedido-service:8084
+    ports:
+      - "8080:8080"
+    depends_on:
+      - auth-service
+      - user-service
+      - producto-service
+      - pedido-service
+    networks:
+      - tienda-net
+
+volumes:
+  auth-data:
+  users-data:
+  productos-data:
+  pedidos-data:
+
+networks:
+  tienda-net:
+    driver: bridge

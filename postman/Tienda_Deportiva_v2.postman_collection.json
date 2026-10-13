@@ -1,0 +1,363 @@
+{
+  "info": {
+    "_postman_id": "c3a4b8d2-5e6f-4a7b-9c0d-1e2f3a4b5c6d",
+    "name": "Tienda Deportiva v2.0 - Microservicios",
+    "description": "Coleccion del Taller 02 v2.0 aplicado a la tienda deportiva (Universidad de Ibagué, Grupo 06). Prueba por el API Gateway (http://localhost:8080): autenticación JWT RS256, perfiles, catálogo protegido, pedidos con cálculo BigDecimal y compatibilidad SOAP. Los scripts guardan studentToken, adminToken y los IDs reales de las respuestas.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": { "type": "noauth" },
+  "item": [
+    {
+      "name": "01 Autenticacion",
+      "item": [
+        {
+          "name": "01.1 Registro de usuario nuevo",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"El registro responde 201 Created\", () => pm.response.to.have.status(201));",
+            "const body = pm.response.json();",
+            "pm.test(\"La credencial se crea con rol USER\", () => pm.expect(body.role).to.eql(\"USER\"));",
+            "pm.environment.set(\"registeredUserId\", body.userId);"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"username\": \"cliente.demo\",\n  \"email\": \"cliente.demo@example.com\",\n  \"password\": \"Demo12345\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/register", "host": ["{{baseUrl}}"], "path": ["api", "auth", "register"] }
+          },
+          "response": []
+        },
+        {
+          "name": "01.2 Login student (USER)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"El login responde 200 OK\", () => pm.response.to.have.status(200));",
+            "const body = pm.response.json();",
+            "pm.test(\"Devuelve accessToken JWT de 3 segmentos\", () => {",
+            "  pm.expect(body.accessToken.split(\".\").length).to.eql(3);",
+            "});",
+            "pm.environment.set(\"studentToken\", body.accessToken);",
+            "pm.environment.set(\"studentId\", body.userId);"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"username\": \"student\",\n  \"password\": \"Student123!\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] }
+          },
+          "response": []
+        },
+        {
+          "name": "01.3 Login admin (ADMIN)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"El login responde 200 OK\", () => pm.response.to.have.status(200));",
+            "const body = pm.response.json();",
+            "pm.test(\"El rol es ADMIN\", () => pm.expect(body.role).to.eql(\"ADMIN\"));",
+            "pm.environment.set(\"adminToken\", body.accessToken);",
+            "pm.environment.set(\"adminId\", body.userId);"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"Admin123!\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] }
+          },
+          "response": []
+        },
+        {
+          "name": "01.4 Credenciales invalidas -> 401",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"Credenciales incorrectas responden 401\", () => pm.response.to.have.status(401));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"username\": \"student\",\n  \"password\": \"Incorrecta123\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "02 Perfil (user-service)",
+      "item": [
+        {
+          "name": "02.1 POST crear mi perfil (student)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"Crea el perfil o 409 si ya existia\", () => pm.expect([201, 409]).to.include(pm.response.code));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{studentToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"firstName\": \"Cliente\",\n  \"lastName\": \"Demo\",\n  \"phone\": \"+57 300 111 2233\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/users", "host": ["{{baseUrl}}"], "path": ["api", "users"] }
+          },
+          "response": []
+        },
+        {
+          "name": "02.2 GET mi perfil (student)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"GET /me responde 200\", () => pm.response.to.have.status(200));",
+            "const body = pm.response.json();",
+            "pm.test(\"La identidad sale del token\", () => pm.expect(body.username).to.eql(\"student\"));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{studentToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/users/me", "host": ["{{baseUrl}}"], "path": ["api", "users", "me"] }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "03 Catalogo (producto-service)",
+      "item": [
+        {
+          "name": "03.1 GET productos con JWT",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"Lista el catalogo con 200\", () => pm.response.to.have.status(200));",
+            "pm.test(\"La respuesta es una lista\", () => pm.expect(pm.response.json()).to.be.an(\"array\"));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{studentToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/productos", "host": ["{{baseUrl}}"], "path": ["api", "productos"] }
+          },
+          "response": []
+        },
+        {
+          "name": "03.2 GET producto por id (semilla 1)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"Consulta el producto 1 con 200\", () => pm.response.to.have.status(200));",
+            "pm.test(\"Es la camiseta semilla\", () => pm.expect(pm.response.json().nombre).to.include(\"Camiseta\"));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{studentToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/productos/1", "host": ["{{baseUrl}}"], "path": ["api", "productos", "1"] }
+          },
+          "response": []
+        },
+        {
+          "name": "03.3 POST producto como ADMIN",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"ADMIN crea producto con 201\", () => pm.response.to.have.status(201));",
+            "pm.environment.set(\"productoId\", pm.response.json().id);"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"nombre\": \"Raqueta de tenis\",\n  \"precio\": 189900.50,\n  \"stock\": 10\n}" },
+            "url": { "raw": "{{baseUrl}}/api/productos", "host": ["{{baseUrl}}"], "path": ["api", "productos"] }
+          },
+          "response": []
+        },
+        {
+          "name": "03.4 POST producto como USER -> 403",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"ROLE_USER recibe 403 al crear\", () => pm.response.to.have.status(403));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{studentToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"nombre\": \"Producto Hackeado\",\n  \"precio\": 1,\n  \"stock\": 1\n}" },
+            "url": { "raw": "{{baseUrl}}/api/productos", "host": ["{{baseUrl}}"], "path": ["api", "productos"] }
+          },
+          "response": []
+        },
+        {
+          "name": "03.5 GET productos sin JWT -> 401",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"Sin token responde 401\", () => pm.response.to.have.status(401));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/productos", "host": ["{{baseUrl}}"], "path": ["api", "productos"] }
+          },
+          "response": []
+        },
+        {
+          "name": "03.6 POST producto invalido (ADMIN) -> 400",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"Entrada invalida responde 400\", () => pm.response.to.have.status(400));",
+            "pm.test(\"Hay errores por campo\", () => pm.expect(pm.response.json().validationErrors).to.be.an(\"object\"));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"nombre\": \"\",\n  \"precio\": -10,\n  \"stock\": -1\n}" },
+            "url": { "raw": "{{baseUrl}}/api/productos", "host": ["{{baseUrl}}"], "path": ["api", "productos"] }
+          },
+          "response": []
+        },
+        {
+          "name": "03.7 GET producto inexistente -> 404",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"El producto inexistente responde 404\", () => pm.response.to.have.status(404));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{studentToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/productos/9999", "host": ["{{baseUrl}}"], "path": ["api", "productos", "9999"] }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "04 Pedidos (pedido-service)",
+      "item": [
+        {
+          "name": "04.1 POST pedido (calcula total con producto-service)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"Crea el pedido con 200\", () => pm.response.to.have.status(200));",
+            "const body = pm.response.json();",
+            "pm.test(\"El total es exacto en BigDecimal (85000 x 3)\", () => pm.expect(Number(body.total)).to.eql(255000));",
+            "pm.environment.set(\"pedidoId\", body.id);"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{studentToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/pedidos?productoId=2&cantidad=3", "host": ["{{baseUrl}}"], "path": ["api", "pedidos"], "query": [
+              { "key": "productoId", "value": "2" },
+              { "key": "cantidad", "value": "3" }
+            ] }
+          },
+          "response": []
+        },
+        {
+          "name": "04.2 GET pedidos con JWT",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"Lista los pedidos con 200\", () => pm.response.to.have.status(200));",
+            "pm.test(\"La respuesta es una lista\", () => pm.expect(pm.response.json()).to.be.an(\"array\"));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{studentToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/pedidos", "host": ["{{baseUrl}}"], "path": ["api", "pedidos"] }
+          },
+          "response": []
+        },
+        {
+          "name": "04.3 GET pedidos sin JWT -> 401",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"Sin token responde 401\", () => pm.response.to.have.status(401));"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/pedidos", "host": ["{{baseUrl}}"], "path": ["api", "pedidos"] }
+          },
+          "response": []
+        },
+        {
+          "name": "04.4 POST pedido con cantidad invalida -> 400",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"Cantidad cero responde 400\", () => pm.response.to.have.status(400));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{studentToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/pedidos?productoId=2&cantidad=0", "host": ["{{baseUrl}}"], "path": ["api", "pedidos"], "query": [
+              { "key": "productoId", "value": "2" },
+              { "key": "cantidad", "value": "0" }
+            ] }
+          },
+          "response": []
+        },
+        {
+          "name": "04.5 POST pedido con producto inexistente -> 404",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"Producto inexistente responde 404\", () => pm.response.to.have.status(404));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{studentToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/pedidos?productoId=9999&cantidad=1", "host": ["{{baseUrl}}"], "path": ["api", "pedidos"], "query": [
+              { "key": "productoId", "value": "9999" },
+              { "key": "cantidad", "value": "1" }
+            ] }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "05 SOAP (compatibilidad)",
+      "item": [
+        {
+          "name": "05.1 WSDL del producto-service",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"El WSDL responde 200\", () => pm.response.to.have.status(200));",
+            "pm.test(\"Es el contrato original de productos\", () => {",
+            "  pm.expect(pm.response.text()).to.include(\"definitions\");",
+            "  pm.expect(pm.response.text()).to.include(\"http://unibague.edu.co/productos\");",
+            "  pm.expect(pm.response.text()).to.include(\"ProductoPort\");",
+            "});"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/ws/productos.wsdl", "host": ["{{baseUrl}}"], "path": ["ws", "productos.wsdl"] }
+          },
+          "response": []
+        },
+        {
+          "name": "05.2 SOAP getProductoRequest (id=1)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"El SOAP responde 200\", () => pm.response.to.have.status(200));",
+            "pm.test(\"Devuelve getProductoResponse con la camiseta\", () => {",
+            "  const xml = pm.response.text();",
+            "  pm.expect(xml).to.include(\"getProductoResponse\");",
+            "  pm.expect(xml).to.include(\"Camiseta\");",
+            "});"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "text/xml; charset=utf-8" },
+              { "key": "SOAPAction", "value": "" }
+            ],
+            "body": { "mode": "raw", "raw": "<soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:prod=\"http://unibague.edu.co/productos\">\n  <soapenv:Header/>\n  <soapenv:Body>\n    <prod:getProductoRequest>\n      <prod:id>1</prod:id>\n    </prod:getProductoRequest>\n  </soapenv:Body>\n</soapenv:Envelope>" },
+            "url": { "raw": "{{baseUrl}}/ws", "host": ["{{baseUrl}}"], "path": ["ws"] },
+            "options": { "raw": { "language": "xml" } }
+          },
+          "response": []
+        },
+        {
+          "name": "05.3 SOAP getProductoRequest (id inexistente)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"El SOAP falla con fault para id inexistente\", () => {",
+            "  pm.expect(pm.response.code).to.be.oneOf([400, 404, 500]);",
+            "  pm.expect(pm.response.text()).to.include(\"Fault\");",
+            "});"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "text/xml; charset=utf-8" },
+              { "key": "SOAPAction", "value": "" }
+            ],
+            "body": { "mode": "raw", "raw": "<soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:prod=\"http://unibague.edu.co/productos\">\n  <soapenv:Header/>\n  <soapenv:Body>\n    <prod:getProductoRequest>\n      <prod:id>9999</prod:id>\n    </prod:getProductoRequest>\n  </soapenv:Body>\n</soapenv:Envelope>" },
+            "url": { "raw": "{{baseUrl}}/ws", "host": ["{{baseUrl}}"], "path": ["ws"] },
+            "options": { "raw": { "language": "xml" } }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

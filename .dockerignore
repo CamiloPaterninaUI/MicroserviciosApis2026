@@ -1,0 +1,14 @@
+# Reduce el contexto de build al minimo que los Dockerfile copian.
+.git/
+.github/
+.idea/
+.vscode/
+**/target/
+postman/
+scripts/
+docs/
+.env
+.keys-tmp/
+*.md
+package-lock.json
+.DS_Store

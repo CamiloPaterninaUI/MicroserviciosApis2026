@@ -1,88 +1,141 @@
-# MicroserviciosApis2026
+# Tienda Deportiva — Microservicios v2.0 (Taller 02)
 
-Proyecto de la asignatura Web, APIs y Microservicios (Universidad de Ibagué) — Grupo 06.
+**Universidad de Ibagué — Web, APIs y Microservicios — Grupo 06**
+Evolución del proyecto de tienda deportiva para cumplir el **Taller 02 v2.0**: Java 21, Spring Boot 4.0.8, Spring Cloud Gateway, JWT RS256, PostgreSQL por servicio, Flyway, DTOs/validación, Swagger, Docker Compose y CI/CD — **conservando el dominio original (productos, pedidos y el servicio SOAP)**.
 
-La idea del proyecto es simular un pequeño sistema de tienda deportiva usando dos microservicios que no comparten base de código entre sí, pero se comunican por HTTP. Uno de los dos incluso expone un servicio SOAP viejo, para practicar los dos estilos (SOAP y REST) dentro del mismo trabajo.
+## Arquitectura
 
-## De qué trata
+| Componente | Puerto | Responsabilidad | Datos |
+|---|---|---|---|
+| api-gateway | 8080 | Punto único de entrada, rutas y `X-Correlation-Id` | Sin BD |
+| auth-service | 8081 | Registro, login, BCrypt, emisión JWT RS256 (llave privada) | auth_db |
+| user-service | 8082 | CRUD de perfiles de usuario | users_db |
+| producto-service | 8083 | Catálogo REST **+ SOAP original (/ws)** | productos_db |
+| pedido-service | 8084 | Pedidos; consulta el precio a producto-service | pedidos_db |
 
-- **producto-service** (puerto 8081): maneja el catálogo de productos. Tiene una API REST normal y, además, un servicio SOAP con su propio WSDL, para consultar un producto por id al estilo "clásico".
-- **pedido-service** (puerto 8082): maneja los pedidos. Cuando alguien crea un pedido, este servicio le pregunta a producto-service (por REST) cuánto vale el producto, y con eso calcula el total del pedido.
+> **Nota de evolución:** originalmente producto ocupaba 8081 y pedido 8082. El contrato de puertos del Taller 02 asigna 8081/8082 a auth/user, por lo que los servicios de negocio migraron a 8083/8084. Todas las operaciones se conservan y además quedan accesibles por el Gateway (`http://localhost:8080/api/...` y `/ws`).
 
-Cada microservicio funciona de forma independiente y no se meten en el código del otro. Toda la comunicación entre ellos pasa por HTTP.
+Cada servicio de negocio tiene **su propia base PostgreSQL** (Database per Service) con migraciones **Flyway** y `ddl-auto: validate`.
 
-## Cómo está armado por dentro
+## Requisitos previos
 
-Al principio ambos servicios guardaban todo en memoria (un `HashMap`), así que si reiniciabas la aplicación se perdía todo. Ya lo cambiamos para que persista en una base de datos MySQL real usando Spring Data JPA. Las clases `Producto` y `Pedido` ahora son entidades (`@Entity`) y en vez de manejar listas a mano, usamos interfaces `JpaRepository` que Spring implementa automáticamente.
+- Docker Desktop (Compose v2)
+- Git (incluye OpenSSL en Git Bash)
+- Opcional: Java 21 + Maven 3.9+ para ejecución sin contenedores
 
-## Tecnologías
-
-- Java 17
-- Spring Boot 3.3.4
-- Spring Web + Spring Web Services (para la parte SOAP)
-- Spring Data JPA + MySQL
-- Maven
-- RestTemplate (para que pedido-service llame a producto-service)
-
-## Antes de correrlo
-
-Necesitas tener MySQL corriendo en tu máquina (nosotros usamos XAMPP porque trae MySQL y phpMyAdmin juntos, más fácil). Hay que crear una base de datos vacía llamada `microservicios_db`:
-
-```sql
-CREATE DATABASE microservicios_db;
-```
-
-No hace falta crear las tablas a mano — Spring/Hibernate las crea solas la primera vez que arranca producto-service (queda configurado con `ddl-auto=update` en el `application.properties`).
-
-Si tu MySQL tiene usuario o contraseña distintos al típico `root` sin contraseña, cámbialo en:
-
-- `producto-service/src/main/resources/application.properties`
-- `pedido-service/src/main/resources/application.properties`
-
-## Cómo correrlo
-
-Cada microservicio se levanta por separado, en su propia terminal. Primero producto-service:
+## Preparación (primera vez)
 
 ```bash
-cd producto-service
-mvn spring-boot:run
+cp .env.example .env
+sh scripts/generate-rsa-keys.sh   # genera el par RSA; la privada SOLO va a auth-service
 ```
 
-Espera a que salga `Started ProductoServiceApplication` antes de seguir. Ahí ya debería haber creado las tablas y metido los 3 productos de ejemplo (camiseta, balón y guayos).
-
-Luego, en otra terminal, pedido-service:
+## Arranque
 
 ```bash
-cd pedido-service
-mvn spring-boot:run
+docker compose up --build -d
+docker compose ps                  # 9 servicios: 4 PostgreSQL + 5 aplicaciones
+curl http://localhost:8080/actuator/health   # {"status":"UP"} (también 8081-8084)
 ```
 
-Este necesita que producto-service ya esté arriba, porque en cuanto le pidas crear un pedido va a intentar consultarle el precio del producto.
+## URLs
 
-## Endpoints
+| Recurso | URL |
+|---|---|
+| API Gateway | http://localhost:8080 |
+| Swagger auth | http://localhost:8081/swagger-ui.html |
+| Swagger users | http://localhost:8082/swagger-ui.html |
+| Swagger producto | http://localhost:8083/swagger-ui.html |
+| Swagger pedido | http://localhost:8084/swagger-ui.html |
+| WSDL SOAP | http://localhost:8080/ws/productos.wsdl |
+| Health | http://localhost:8080/actuator/health |
 
-### producto-service (puerto 8081)
+## Usuarios demo (uso académico)
 
-| Tipo | Endpoint | Qué hace |
+| Rol | Usuario | Contraseña |
 |---|---|---|
-| REST | `GET /api/productos` | Lista todos los productos |
-| REST | `GET /api/productos/{id}` | Trae un producto por id |
-| REST | `POST /api/productos` | Crea un producto nuevo |
-| SOAP | `POST /ws` | Consulta un producto (`getProductoRequest` → `getProductoResponse`) |
-| WSDL | `GET /ws/productos.wsdl` | El contrato del servicio SOAP |
+| ADMIN | admin | `Admin123!` |
+| USER | student | `Student123!` |
 
-### pedido-service (puerto 8082)
+## Endpoints por el Gateway (:8080)
 
-| Tipo | Endpoint | Qué hace |
-|---|---|---|
-| REST | `GET /api/pedidos` | Lista todos los pedidos |
-| REST | `POST /api/pedidos?productoId={id}&cantidad={n}` | Crea un pedido (calcula el total consultando el precio en producto-service) |
+**Autenticación (público):**
+- `POST /api/auth/register` — crea credencial USER (201); duplicados → 409; inválido → 400
+- `POST /api/auth/login` — devuelve JWT Bearer RS256 (200); credenciales erróneas → 401
 
-Para probar el POST no sirve el navegador solo, toca usar Postman o algo parecido, ya que necesita parámetros.
+**Perfiles (JWT):** `POST /api/users` (201), `GET /api/users/me` (200), `GET /api/users` (solo ADMIN), `GET|PUT /api/users/{id}` (propietario/ADMIN), `DELETE /api/users/{id}` (solo ADMIN).
 
-## Equipo
+**Catálogo (JWT):** `GET /api/productos` y `GET /api/productos/{id}` (autenticado; inexistente → 404), `POST /api/productos` (**solo ADMIN**, 201; inválido → 400).
 
-- Camilo Paternina
-- Julian Fonseca
-- Santiago Lozano
-- Laura Zalazar
+**Pedidos (JWT):** `GET /api/pedidos` (200) y `POST /api/pedidos?productoId={id}&cantidad={n}` (200, calcula el total contra producto-service; producto inexistente → 404; producto-service caído → 502; cantidad ≤ 0 → 400).
+
+**SOAP (público, conservado):** `POST /ws` con `getProductoRequest` → `getProductoResponse`; WSDL en `GET /ws/productos.wsdl`.
+
+## Prueba rápida con curl
+
+```bash
+# Login y token (nunca se imprimen tokens completos en los reportes)
+TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"student","password":"Student123!"}' \
+  | sed -n 's/.*"accessToken":"\([^"]*\)".*/\1/p')
+
+# Catálogo protegido
+curl -i http://localhost:8080/api/productos -H "Authorization: Bearer $TOKEN"
+
+# Crear un pedido (el total lo calcula pedido-service con BigDecimal)
+curl -i -X POST "http://localhost:8080/api/pedidos?productoId=2&cantidad=3" \
+  -H "Authorization: Bearer $TOKEN"
+
+# SOAP original por el Gateway
+curl -s http://localhost:8080/ws/productos.wsdl
+curl -s -X POST http://localhost:8080/ws \
+  -H "Content-Type: text/xml; charset=utf-8" \
+  -d '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:prod="http://unibague.edu.co/productos"><soapenv:Header/><soapenv:Body><prod:getProductoRequest><prod:id>1</prod:id></prod:getProductoRequest></soapenv:Body></soapenv:Envelope>'
+```
+
+## Postman
+
+Importe `postman/Tienda_Deportiva_v2.postman_collection.json` y `postman/Tienda_Deportiva_v2.postman_environment.json`, seleccione el ambiente "Tienda Deportiva v2.0 - Local" y ejecute la colección en orden con Runner (también funciona con `newman`):
+
+```bash
+newman run postman/Tienda_Deportiva_v2.postman_collection.json -e postman/Tienda_Deportiva_v2.postman_environment.json
+```
+
+## Persistencia
+
+```bash
+docker volume ls                          # 4 volúmenes: auth/users/productos/pedidos
+docker compose down                       # los datos PERMANECEN
+docker compose up -d                      # los datos reaparecen
+# docker compose down -v                  # ¡SOLO si desea reiniciar por completo (borra datos)!
+```
+
+## Ejecución sin Docker
+
+```bash
+sh scripts/generate-rsa-keys.sh
+mvn -B clean verify                       # 69 pruebas automatizadas
+mvn -B -pl producto-service -am spring-boot:run   # requiere PostgreSQL en 5435 (o PRODUCTOS_DB_URL)
+mvn -B -pl pedido-service -am spring-boot:run      # 5436; PRODUCTO_SERVICE_URL apunta a producto
+mvn -B -pl auth-service -am spring-boot:run        # 5433
+mvn -B -pl user-service -am spring-boot:run        # 5434
+mvn -B -pl api-gateway -am spring-boot:run        # 8080
+```
+
+## CI/CD
+
+`.github/workflows/ci-cd.yml`: en cada push/PR ejecuta `mvn -B clean verify` (Java 21); en push a `main` construye y publica las 5 imágenes en `ghcr.io/camilopaterninaui/tienda-<servicio>` con `GITHUB_TOKEN`.
+
+## Seguridad
+
+- BCrypt para contraseñas; nunca en respuestas REST.
+- JWT RS256: la llave privada vive solo en auth-service; user/producto/pedido validan con la pública (issuer `taller02-auth`).
+- Llaves `.pem` y `.env` fuera de Git.
+- El SOAP `/ws/**` se mantiene público para preservar la interoperabilidad clásica del proyecto original (decisión documentada en `IMPLEMENTATION_NOTES.md`).
+
+## Documentación
+
+- `IMPLEMENTATION_NOTES.md` — matriz de auditoría y todas las correcciones documentadas.
+- `VALIDATION_REPORT.md` — evidencia de cada verificación ejecutada.
+- `FINAL_TEST_REPORT.md` — informe final de la validación integral.
