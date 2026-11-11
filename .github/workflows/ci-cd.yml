@@ -1,8 +1,8 @@
-name: Tienda Deportiva v2.0 CI-CD
+name: Tienda Deportiva v3.0 CI-CD (Proyecto 03)
 
 on:
   push:
-    branches: [ main, taller02-evolucion ]
+    branches: [ main, taller02-evolucion, proyecto03-kubernetes-keycloak ]
   pull_request:
     branches: [ main ]
 
@@ -35,7 +35,7 @@ jobs:
       packages: write
     strategy:
       matrix:
-        service: [api-gateway, auth-service, user-service, producto-service, pedido-service]
+        service: [api-gateway, auth-service, user-service, producto-service, pedido-service, pago-service]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
