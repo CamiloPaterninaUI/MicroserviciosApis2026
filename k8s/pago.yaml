@@ -1,0 +1,192 @@
+# =============================================================================
+# pago-service - PostgreSQL propia (pagos_db), puerto 8085
+# Servicio de pagos del Proyecto 03 (contratos definidos en docs/ARCHITECTURE.md)
+# =============================================================================
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pagos-postgres-pvc
+  namespace: proyecto-03
+  labels:
+    app: pagos-postgres
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: hostpath
+  resources:
+    requests:
+      storage: 2Gi
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pagos-postgres
+  namespace: proyecto-03
+  labels:
+    app: pagos-postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pagos-postgres
+  template:
+    metadata:
+      labels:
+        app: pagos-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:17-alpine
+          env:
+            - name: POSTGRES_DB
+              value: pagos_db
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: tienda-secrets
+                  key: pagos-db-username
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: tienda-secrets
+                  key: pagos-db-password
+          ports:
+            - containerPort: 5432
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: pagos-postgres-data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U $POSTGRES_USER -d pagos_db"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 15
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U $POSTGRES_USER -d pagos_db"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
+      volumes:
+        - name: pagos-postgres-data
+          persistentVolumeClaim:
+            claimName: pagos-postgres-pvc
+      restartPolicy: Always
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: pagos-db
+  namespace: proyecto-03
+  labels:
+    app: pagos-postgres
+spec:
+  type: ClusterIP
+  selector:
+    app: pagos-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pago-service
+  namespace: proyecto-03
+  labels:
+    app: pago-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pago-service
+  template:
+    metadata:
+      labels:
+        app: pago-service
+    spec:
+      containers:
+        - name: pago-service
+          image: tienda-deportiva/pago-service:3.0.0
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8085
+          env:
+            - name: PAGOS_DB_URL
+              value: jdbc:postgresql://pagos-db:5432/pagos_db
+            - name: PAGOS_DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: tienda-secrets
+                  key: pagos-db-username
+            - name: PAGOS_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: tienda-secrets
+                  key: pagos-db-password
+            - name: KEYCLOAK_ISSUER_URI
+              value: http://keycloak:8080/realms/tienda-deportiva
+            - name: PAYMENT_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: tienda-secrets
+                  key: payment-webhook-secret
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8085
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8085
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
+      restartPolicy: Always
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: pago-service
+  namespace: proyecto-03
+  labels:
+    app: pago-service
+spec:
+  type: ClusterIP
+  selector:
+    app: pago-service
+  ports:
+    - name: http
+      port: 8085
+      targetPort: 8085

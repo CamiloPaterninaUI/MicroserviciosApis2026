@@ -2,31 +2,17 @@ package com.unibague.auth.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.Customizer;
-import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 
 /**
- * API REST sin estado: los endpoints de autenticación y documentación son
- * públicos y el resto queda protegido. No se usan sesiones HTTP.
+ * auth-service expone solo /api/auth/register y /api/auth/login (públicos);
+ * delega la identidad en Keycloak. No valida JWTs propios.
  */
 @Configuration
 public class SecurityConfig {
-
-    @Bean
-    PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
-
-    @Bean
-    AuthenticationManager authenticationManager(AuthenticationConfiguration configuration) throws Exception {
-        return configuration.getAuthenticationManager();
-    }
 
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -41,8 +27,7 @@ public class SecurityConfig {
                     "/swagger-ui.html",
                     "/actuator/health/**"
                 ).permitAll()
-                .anyRequest().authenticated())
-            .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));
+                .anyRequest().authenticated());
         return http.build();
     }
 }

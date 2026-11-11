@@ -1,72 +1,43 @@
 package com.unibague.auth.service;
 
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
+import com.unibague.auth.config.KeycloakClient;
 import com.unibague.auth.dto.AuthResponse;
 import com.unibague.auth.dto.LoginRequest;
 import com.unibague.auth.dto.RegisterRequest;
 import com.unibague.auth.dto.RegisterResponse;
 import com.unibague.auth.exception.ConflictException;
-import com.unibague.auth.model.Credential;
-import com.unibague.auth.model.Role;
-import com.unibague.auth.repository.CredentialRepository;
 
+/**
+ * Delegación de identidad a Keycloak (único emisor JWT).
+ * - register: crea el usuario en Keycloak mediante la API de administración.
+ * - login: obtiene el accessToken de Keycloak (concesión de contraseña OIDC)
+ *   y lo devuelve al cliente.
+ */
 @Service
 public class AuthService {
 
-    private final CredentialRepository repository;
-    private final PasswordEncoder passwordEncoder;
-    private final AuthenticationManager authenticationManager;
-    private final JwtService jwtService;
+    private final KeycloakClient keycloak;
 
-    public AuthService(CredentialRepository repository,
-                      PasswordEncoder passwordEncoder,
-                      AuthenticationManager authenticationManager,
-                      JwtService jwtService) {
-        this.repository = repository;
-        this.passwordEncoder = passwordEncoder;
-        this.authenticationManager = authenticationManager;
-        this.jwtService = jwtService;
+    public AuthService(KeycloakClient keycloak) {
+        this.keycloak = keycloak;
     }
 
-    @Transactional
     public RegisterResponse register(RegisterRequest request) {
-        if (repository.existsByUsername(request.username())) {
-            throw new ConflictException("El nombre de usuario ya está registrado");
+        try {
+            keycloak.createUser(request);
+        } catch (KeycloakClient.AuthException ex) {
+            if (ex.getMessage() != null && ex.getMessage().contains("already exists")) {
+                throw new ConflictException("El nombre de usuario ya está registrado");
+            }
+            throw ex;
         }
-        if (repository.existsByEmail(request.email())) {
-            throw new ConflictException("El correo electrónico ya está registrado");
-        }
-
-        Credential credential = new Credential();
-        credential.setUsername(request.username());
-        credential.setEmail(request.email());
-        credential.setPasswordHash(passwordEncoder.encode(request.password()));
-        credential.setRole(Role.USER);
-
-        Credential saved = repository.save(credential);
-        return new RegisterResponse(saved.getId(), saved.getUsername(), saved.getEmail(), saved.getRole().name());
+        return new RegisterResponse(null, request.username(), request.email(), "USER");
     }
 
-    @Transactional(readOnly = true)
     public AuthResponse login(LoginRequest request) {
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.username(), request.password()));
-
-        Credential credential = repository.findByUsername(request.username())
-                .orElseThrow();
-
-        JwtService.TokenResult result = jwtService.generateToken(credential);
-        return new AuthResponse(
-                "Bearer",
-                result.token(),
-                result.expiresAt(),
-                credential.getId(),
-                credential.getUsername(),
-                credential.getRole().name());
+        String accessToken = keycloak.authenticate(request.username(), request.password());
+        return new AuthResponse("Bearer", accessToken, null, null, request.username(), "USER");
     }
 }

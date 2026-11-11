@@ -13,9 +13,9 @@
 
     <groupId>com.unibague</groupId>
     <artifactId>microservicios-tienda</artifactId>
-    <version>2.0.0</version>
+    <version>3.0.0</version>
     <packaging>pom</packaging>
-    <name>Tienda Deportiva - Microservicios v2.0 (Taller 02)</name>
+    <name>Tienda Deportiva - Microservicios v3.0 (Proyecto 03 - Kubernetes + Keycloak)</name>
 
     <modules>
         <module>api-gateway</module>
@@ -23,6 +23,7 @@
         <module>user-service</module>
         <module>producto-service</module>
         <module>pedido-service</module>
+        <module>pago-service</module>
     </modules>
 
     <properties>

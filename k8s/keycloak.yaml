@@ -1,0 +1,187 @@
+# =============================================================================
+# Keycloak - proveedor de identidad OAuth 2.0 / OpenID Connect (emisor unico)
+# =============================================================================
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-realm
+  namespace: proyecto-03
+  labels:
+    app: keycloak
+data:
+  01-realm-tienda.json: |
+    {
+      "id": "tienda-deportiva",
+      "realm": "tienda-deportiva",
+      "enabled": true,
+      "displayName": "Tienda Deportiva - Proyecto 03",
+      "registrationAllowed": true,
+      "registrationEmailAsUsername": false,
+      "resetPassword": true,
+      "editUsername": true,
+      "bruteForceProtected": true,
+      "permanentLockout": false,
+      "maxFailureQuickAttempts": 5,
+      "minimumQuickLoginWaitSeconds": 1,
+      "minimumWaitIntervalAfterFailureSeconds": 60,
+      "failureFactor": 30,
+      "internationalizationEnabled": false,
+      "defaultLocale": "es",
+      "roles": {
+        "realm": [
+          { "id": "11111111-1111-1111-1111-111111111111", "name": "USER", "description": "Usuario registrado", "composite": false, "clientRole": false, "inherited": { } },
+          { "id": "22222222-2222-2222-2222-222222222222", "name": "ADMIN", "description": "Administrador", "composite": false, "clientRole": false, "inherited": { } }
+        ],
+        "client": { }
+      },
+      "clients": [
+        {
+          "id": "33333333-3333-3333-3333-333333333333",
+          "clientId": "tienda-auth",
+          "name": "Tienda - cliente public (password grant)",
+          "enabled": true,
+          "protocol": "openid-connect",
+          "publicClient": true,
+          "standardFlowEnabled": true,
+          "implicitFlowEnabled": false,
+          "directAccessGrantsEnabled": true,
+          "serviceAccountsEnabled": false,
+          "authorizationServicesEnabled": false,
+          "frontchannelLogout": false,
+          "alwaysDisplayInConsole": false,
+          "redirectUris": [ ],
+          "webOrigins": [ "*" ],
+          "notBefore": 0,
+          "bearerOnly": false,
+          "consentRequired": false,
+          "attributes": { "pkce.code.challenge.method": "S256" },
+          "protocolMappers": [ ],
+          "defaultClientScopes": [ ],
+          "optionalClientScopes": [ ]
+        },
+        {
+          "id": "44444444-4444-4444-4444-444444444444",
+          "clientId": "tienda-admin",
+          "name": "Tienda - cliente administrativo",
+          "enabled": true,
+          "protocol": "openid-connect",
+          "publicClient": false,
+          "standardFlowEnabled": true,
+          "implicitFlowEnabled": false,
+          "directAccessGrantsEnabled": false,
+          "serviceAccountsEnabled": true,
+          "authorizationServicesEnabled": false,
+          "frontchannelLogout": false,
+          "alwaysDisplayInConsole": false,
+          "redirectUris": [ ],
+          "webOrigins": [ "*" ],
+          "notBefore": 0,
+          "bearerOnly": false,
+          "consentRequired": false,
+          "attributes": { },
+          "protocolMappers": [ ],
+          "defaultClientScopes": [ ],
+          "optionalClientScopes": [ ]
+        }
+      ],
+      "defaultDefaultClientScopes": [ "email", "profile", "roles" ],
+      "optionalClientScopes": [ "microprofile-jwt" ],
+      "realmUsers": [ ],
+      "users": [ ]
+    }
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  namespace: proyecto-03
+  labels:
+    app: keycloak
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: keycloak
+  template:
+    metadata:
+      labels:
+        app: keycloak
+    spec:
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:26.0.1
+          args: ["start-dev"]
+          env:
+            - name: KEYCLOAK_ADMIN
+              value: admin
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: tienda-secrets
+                  key: keycloak-admin-password
+            - name: KC_DB
+              value: postgres
+            - name: KC_DB_URL
+              value: jdbc:postgresql://keycloak-postgres:5432/keycloak
+            - name: KC_DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: tienda-secrets
+                  key: keycloak-db-username
+            - name: KC_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: tienda-secrets
+                  key: keycloak-db-password
+            - name: KC_HOSTNAME_STRICT
+              value: "false"
+            - name: KC_HOSTNAME_PORT
+              value: "8080"
+            - name: PROXY_ADDRESS_FORWARDING
+              value: "true"
+          ports:
+            - containerPort: 8080
+              name: http
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 40
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 60
+          livenessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 90
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 20
+      restartPolicy: Always
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  namespace: proyecto-03
+  labels:
+    app: keycloak
+spec:
+  type: ClusterIP
+  selector:
+    app: keycloak
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

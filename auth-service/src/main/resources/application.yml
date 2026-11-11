@@ -4,27 +4,18 @@ server:
 spring:
   application:
     name: auth-service
-  datasource:
-    url: ${AUTH_DB_URL:jdbc:postgresql://localhost:5433/auth_db}
-    username: ${AUTH_DB_USERNAME:postgres}
-    password: ${AUTH_DB_PASSWORD:postgres}
-  jpa:
-    open-in-view: false
-    hibernate:
-      ddl-auto: validate
-  flyway:
-    enabled: true
   jackson:
     default-property-inclusion: non_null
 
-app:
-  jwt:
-    issuer: taller02-auth
-    expiration-minutes: 60
-    public-key: classpath:keys/public.pem
-    private-key: classpath:keys/private.pem
-  demo-users:
-    enabled: ${DEMO_USERS_ENABLED:true}
+# Conexión con Keycloak: único emisor de identidades (OIDC / OAuth 2.0).
+# En Kubernetes se inyectan KEYCLOAK_* apuntando al DNS interno del servicio keycloak.
+keycloak:
+  server-url: ${KEYCLOAK_SERVER_URL:http://localhost:8080}
+  realm: ${KEYCLOAK_REALM:tienda-deportiva}
+  client-id: ${KEYCLOAK_CLIENT_ID:tienda-auth}
+  client-secret: ${KEYCLOAK_CLIENT_SECRET:}
+  admin-client-id: ${KEYCLOAK_ADMIN_CLIENT_ID:tienda-admin}
+  admin-client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:}
 
 management:
   endpoints:

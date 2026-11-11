@@ -1,0 +1,189 @@
+# =============================================================================
+# pedido-service - PostgreSQL propia (pedidos_db), puerto 8084 (evita conflictos)
+# Consulta precio a producto-service via DNS interno de Kubernetes.
+# =============================================================================
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pedidos-postgres-pvc
+  namespace: proyecto-03
+  labels:
+    app: pedidos-postgres
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: hostpath
+  resources:
+    requests:
+      storage: 2Gi
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pedidos-postgres
+  namespace: proyecto-03
+  labels:
+    app: pedidos-postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pedidos-postgres
+  template:
+    metadata:
+      labels:
+        app: pedidos-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:17-alpine
+          env:
+            - name: POSTGRES_DB
+              value: pedidos_db
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: tienda-secrets
+                  key: pedidos-db-username
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: tienda-secrets
+                  key: pedidos-db-password
+          ports:
+            - containerPort: 5432
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: pedidos-postgres-data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U $POSTGRES_USER -d pedidos_db"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 15
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U $POSTGRES_USER -d pedidos_db"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
+      volumes:
+        - name: pedidos-postgres-data
+          persistentVolumeClaim:
+            claimName: pedidos-postgres-pvc
+      restartPolicy: Always
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: pedidos-db
+  namespace: proyecto-03
+  labels:
+    app: pedidos-postgres
+spec:
+  type: ClusterIP
+  selector:
+    app: pedidos-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pedido-service
+  namespace: proyecto-03
+  labels:
+    app: pedido-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pedido-service
+  template:
+    metadata:
+      labels:
+        app: pedido-service
+    spec:
+      containers:
+        - name: pedido-service
+          image: tienda-deportiva/pedido-service:3.0.0
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8084
+          env:
+            - name: PEDIDOS_DB_URL
+              value: jdbc:postgresql://pedidos-db:5432/pedidos_db
+            - name: PEDIDOS_DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: tienda-secrets
+                  key: pedidos-db-username
+            - name: PEDIDOS_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: tienda-secrets
+                  key: pedidos-db-password
+            - name: KEYCLOAK_ISSUER_URI
+              value: http://keycloak:8080/realms/tienda-deportiva
+            - name: PRODUCTO_SERVICE_URL
+              value: http://producto-service:8083/api/productos/
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8084
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8084
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
+      restartPolicy: Always
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: pedido-service
+  namespace: proyecto-03
+  labels:
+    app: pedido-service
+spec:
+  type: ClusterIP
+  selector:
+    app: pedido-service
+  ports:
+    - name: http
+      port: 8084
+      targetPort: 8084

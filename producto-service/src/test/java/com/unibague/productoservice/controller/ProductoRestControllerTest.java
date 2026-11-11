@@ -34,6 +34,7 @@ import com.unibague.productoservice.exception.ResourceNotFoundException;
 import com.unibague.productoservice.service.ProductoService;
 import com.unibague.productoservice.support.TestJwtFactory;
 import com.unibague.productoservice.support.TestRsaKeys;
+import com.unibague.productoservice.support.TestSecurityConfig;
 
 /**
  * Matriz de seguridad del catalogo (Taller 02): 401 sin token,
@@ -41,7 +42,7 @@ import com.unibague.productoservice.support.TestRsaKeys;
  * Se prueba la cadena de filtros de seguridad completa.
  */
 @WebMvcTest(ProductoRestController.class)
-@Import(SecurityConfig.class)
+@Import({SecurityConfig.class, TestSecurityConfig.class})
 class ProductoRestControllerTest {
 
     private String userToken;

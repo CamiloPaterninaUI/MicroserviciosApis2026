@@ -16,10 +16,14 @@ spring:
     enabled: true
   jackson:
     default-property-inclusion: non_null
-
-app:
-  jwt:
-    public-key: classpath:keys/public.pem
+  # Identidad: OAuth 2.0 / OpenID Connect con Keycloak (emisor unico JWT).
+  # En Kubernetes se inyecta KEYCLOAK_ISSUER_URI=http://keycloak:8080/realms/tienda-deportiva
+  # (DNS interno de k8s, nunca localhost entre pods).
+  security:
+    oauth2:
+      resourceserver:
+        oidc:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8080/realms/tienda-deportiva}
 
 # Direccion del producto-service: configurable (antes estaba quemada
 # http://localhost:8081). En Docker se inyecta por variable de entorno.

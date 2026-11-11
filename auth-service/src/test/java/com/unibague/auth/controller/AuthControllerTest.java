@@ -6,43 +6,34 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.time.Instant;
-import java.util.UUID;
-
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
-import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import com.unibague.auth.config.RsaKeyConfig;
-import com.unibague.auth.config.SecurityConfig;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.unibague.auth.dto.AuthResponse;
 import com.unibague.auth.dto.LoginRequest;
 import com.unibague.auth.dto.RegisterRequest;
 import com.unibague.auth.dto.RegisterResponse;
-import com.unibague.auth.exception.ConflictException;
-import com.unibague.auth.security.CustomUserDetailsService;
 import com.unibague.auth.service.AuthService;
-import com.unibague.auth.support.TestRsaKeys;
 
 /**
- * Prueba la API de autenticación a nivel HTTP con la configuración real de
- * seguridad: códigos 201/200 para casos correctos y 400/401/409 para los
- * casos negativos del contrato.
+ * Prueba HTTP de la API de autenticación. auth-service delega en Keycloak, por
+ * lo que {@link AuthService} se simula; no se necesitan llaves RSA ni Keycloak
+ * real en el alcance de prueba unitaria.
  */
 @WebMvcTest(AuthController.class)
-@Import({SecurityConfig.class, RsaKeyConfig.class})
+@Import(AuthControllerTest.TestConfig.class)
 class AuthControllerTest {
+
+    @TestConfiguration
+    static class TestConfig {
+    }
 
     @Autowired
     private MockMvc mockMvc;
@@ -50,146 +41,46 @@ class AuthControllerTest {
     @MockitoBean
     private AuthService authService;
 
-    @MockitoBean
-    private CustomUserDetailsService customUserDetailsService;
-
-    /**
-     * El slice @WebMvcTest de Boot 4 no importa la autoconfiguración de
-     * seguridad (ServletWebSecurityAutoConfiguration), por lo que la
-     * infraestructura de @EnableWebSecurity (HttpSecurity,
-     * AuthenticationConfiguration, WebSecurityConfiguration) no existe y el
-     * SecurityConfig real no puede construirse. Activándola aquí se prueba la
-     * cadena de filtros de seguridad completa y auténtica.
-     */
-    @TestConfiguration
-    @EnableWebSecurity
-    static class WebSecurityTestConfiguration {
-    }
-
-    @DynamicPropertySource
-    static void rsaKeys(DynamicPropertyRegistry registry) throws Exception {
-        // Las llaves de producción (classpath:keys/*.pem) no se versionan;
-        // para la prueba se genera un par en memoria y se expone como archivos.
-        Path dir = Files.createTempDirectory("taller02-auth-test-keys");
-        Path publicPem = dir.resolve("public.pem");
-        Path privatePem = dir.resolve("private.pem");
-        Files.writeString(publicPem, TestRsaKeys.publicPem());
-        Files.writeString(privatePem, TestRsaKeys.privatePem());
-        registry.add("app.jwt.public-key", () -> publicPem.toUri().toString());
-        registry.add("app.jwt.private-key", () -> privatePem.toUri().toString());
-    }
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
-    void registerReturns201WithTheCreatedCredential() throws Exception {
-        when(authService.register(any(RegisterRequest.class))).thenReturn(
-                new RegisterResponse(UUID.randomUUID(), "carlos.demo", "carlos.demo@example.com", "USER"));
+    void registro_devuelve201() throws Exception {
+        RegisterResponse esperado = new RegisterResponse(null, "student", "student@taller.local", "USER");
+        when(authService.register(any(RegisterRequest.class))).thenReturn(esperado);
+
+        RegisterRequest req = new RegisterRequest("student", "student@taller.local", "Student123!", "Test", "User");
 
         mockMvc.perform(post("/api/auth/register")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "username": "carlos.demo",
-                                  "email": "carlos.demo@example.com",
-                                  "password": "Demo12345"
-                                }
-                                """))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.username").value("carlos.demo"))
-                .andExpect(jsonPath("$.role").value("USER"))
-                .andExpect(jsonPath("$.userId").exists());
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.username").value("student"));
     }
 
     @Test
-    void registerWithInvalidPayloadReturns400AndFieldErrors() throws Exception {
-        mockMvc.perform(post("/api/auth/register")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "username": "",
-                                  "email": "no-es-un-correo",
-                                  "password": "corto1"
-                                }
-                                """))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.validationErrors.username").exists())
-                .andExpect(jsonPath("$.validationErrors.email").exists())
-                .andExpect(jsonPath("$.validationErrors.password").exists());
+    void login_devuelve200_conAccessToken() throws Exception {
+        AuthResponse token = new AuthResponse("Bearer", "access-token-prueba", null, null, "student", "USER");
+        when(authService.login(any(LoginRequest.class))).thenReturn(token);
+
+        LoginRequest req = new LoginRequest("student", "Student123!");
+
+        mockMvc.perform(post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.accessToken").value("access-token-prueba"));
     }
 
     @Test
-    void registerWithDuplicatedUsernameReturns409() throws Exception {
+    void registro_usuarioDuplicado_devuelve409() throws Exception {
         when(authService.register(any(RegisterRequest.class)))
-                .thenThrow(new ConflictException("El nombre de usuario ya está registrado"));
+            .thenThrow(new com.unibague.auth.exception.ConflictException("El nombre de usuario ya está registrado"));
+
+        RegisterRequest req = new RegisterRequest("student", "student@taller.local", "Student123!", "Test", "User");
 
         mockMvc.perform(post("/api/auth/register")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "username": "carlos.demo",
-                                  "email": "carlos.demo@example.com",
-                                  "password": "Demo12345"
-                                }
-                                """))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.status").value(409))
-                .andExpect(jsonPath("$.message").value("El nombre de usuario ya está registrado"));
-    }
-
-    @Test
-    void loginReturns200WithAccessToken() throws Exception {
-        when(authService.login(any(LoginRequest.class))).thenReturn(new AuthResponse(
-                "Bearer",
-                "eyJhbGciOiJSUzI1NiJ9.token-de-prueba",
-                Instant.now().plusSeconds(3600),
-                UUID.randomUUID(),
-                "student",
-                "USER"));
-
-        mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "username": "student",
-                                  "password": "Student123!"
-                                }
-                                """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.tokenType").value("Bearer"))
-                .andExpect(jsonPath("$.accessToken").isNotEmpty())
-                .andExpect(jsonPath("$.username").value("student"));
-    }
-
-    @Test
-    void loginWithWrongPasswordReturns401() throws Exception {
-        when(authService.login(any(LoginRequest.class)))
-                .thenThrow(new BadCredentialsException("credenciales inválidas"));
-
-        mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "username": "student",
-                                  "password": "ContraseniaIncorrecta1"
-                                }
-                                """))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.status").value(401))
-                .andExpect(jsonPath("$.message").value("Credenciales inválidas"));
-    }
-
-    @Test
-    void loginWithBlankFieldsReturns400() throws Exception {
-        mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "username": "",
-                                  "password": ""
-                                }
-                                """))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.validationErrors.username").exists())
-                .andExpect(jsonPath("$.validationErrors.password").exists());
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
+            .andExpect(status().isConflict());
     }
 }

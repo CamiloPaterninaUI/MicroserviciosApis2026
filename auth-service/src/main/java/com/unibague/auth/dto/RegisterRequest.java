@@ -13,5 +13,7 @@ public record RegisterRequest(
         @Pattern(
                 regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).+$",
                 message = "La contraseña debe contener mayúscula, minúscula y número"
-        ) String password
+        ) String password,
+        @NotBlank String firstName,
+        @NotBlank String lastName
 ) {}
