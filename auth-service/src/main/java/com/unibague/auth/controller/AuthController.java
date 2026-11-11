@@ -26,13 +26,13 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    @Operation(summary = "Registra una nueva credencial de usuario")
+    @Operation(summary = "Registra un nuevo usuario en Keycloak")
     public ResponseEntity<RegisterResponse> register(@Valid @RequestBody RegisterRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(authService.register(request));
     }
 
     @PostMapping("/login")
-    @Operation(summary = "Autentica un usuario y devuelve un JWT")
+    @Operation(summary = "Autentica contra Keycloak y devuelve el accessToken")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
         return ResponseEntity.ok(authService.login(request));
     }

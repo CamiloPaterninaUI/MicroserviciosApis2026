@@ -1,0 +1,25 @@
+FROM maven:3.9.11-eclipse-temurin-21 AS build
+WORKDIR /workspace
+
+COPY pom.xml ./
+COPY api-gateway/pom.xml api-gateway/pom.xml
+COPY auth-service/pom.xml auth-service/pom.xml
+COPY user-service/pom.xml user-service/pom.xml
+COPY producto-service/pom.xml producto-service/pom.xml
+COPY pedido-service/pom.xml pedido-service/pom.xml
+COPY pago-service/pom.xml pago-service/pom.xml
+# La precarga de dependencias es solo una optimizacion de cacheo.
+RUN mvn -B -pl pago-service -am dependency:go-offline || echo "go-offline parcial: clean package descargara lo faltante"
+
+COPY pago-service/src pago-service/src
+RUN mvn -B -pl pago-service -am clean package -DskipTests
+
+FROM eclipse-temurin:21-jre
+WORKDIR /app
+
+RUN useradd --system --uid 1001 spring
+COPY --from=build /workspace/pago-service/target/pago-service-3.0.0.jar app.jar
+USER spring
+
+EXPOSE 8085
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

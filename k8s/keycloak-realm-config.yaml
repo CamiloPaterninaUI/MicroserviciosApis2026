@@ -1,0 +1,76 @@
+# =============================================================================
+# Keycloak - configuracion del realm tienda-deportiva (Job de inicializacion)
+#
+# Se ejecuta tras levantar Keycloak y crea, mediante la API de administracion
+# (kcadm.sh):
+#   - realm tienda-deportiva
+#   - roles realm: USER, ADMIN
+#   - cliente publico tienda-auth (concesion de contraseña OIDC para auth-service)
+# Lee KEYCLOAK_ADMIN_PASSWORD del Secret tienda-secrets (nunca en terminal).
+# =============================================================================
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: keycloak-realm-config
+  namespace: proyecto-03
+  labels:
+    app: keycloak-realm-config
+spec:
+  backoffLimit: 5
+  template:
+    metadata:
+      labels:
+        app: keycloak-realm-config
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: keycloak-realm-config
+          image: quay.io/keycloak/keycloak:26.0.1
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              /opt/keycloak/bin/kcadm.sh config credentials \
+                --server http://keycloak:8080 \
+                --realm master \
+                --user "$KEYCLOAK_ADMIN_USER" \
+                --password "$KEYCLOAK_ADMIN_PASSWORD" >/dev/null 2>&1
+              # Esperar a que el realm master responda
+              until /opt/keycloak/bin/kcadm.sh get realms/master >/dev/null 2>&1; do
+                echo "Esperando a Keycloak..."
+                sleep 5
+              done
+              echo "Keycloak alcanzable"
+              # Crear realm si no existe
+              if ! /opt/keycloak/bin/kcadm.sh get realms/tienda-deportiva >/dev/null 2>&1; then
+                /opt/keycloak/bin/kcadm.sh create realms \
+                  -s realm=tienda-deportiva \
+                  -s enabled=true \
+                  -s displayName="Tienda Deportiva - Proyecto 03"
+                echo "Realm tienda-deportiva creado"
+              else
+                echo "El realm tienda-deportiva ya existe"
+              fi
+              # Roles de realm (idempotentes)
+              /opt/keycloak/bin/kcadm.sh create roles -r tienda-deportiva -s name=USER -s description="Usuario registrado" || true
+              /opt/keycloak/bin/kcadm.sh create roles -r tienda-deportiva -s name=ADMIN -s description="Administrador" || true
+              # Cliente publico para concesion de contraseña OIDC (auth-service)
+              /opt/keycloak/bin/kcadm.sh create clients -r tienda-deportiva \
+                -s clientId=tienda-auth \
+                -s publicClient=true \
+                -s standardFlowEnabled=true \
+                -s implicitFlowEnabled=false \
+                -s directAccessGrantsEnabled=true \
+                -s serviceAccountsEnabled=false \
+                -s protocol=openid-connect || true
+              echo "Configuracion del realm tienda-deportiva completada"
+          env:
+            - name: KEYCLOAK_ADMIN_USER
+              value: admin
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: tienda-secrets
+                  key: keycloak-admin-password

@@ -25,6 +25,10 @@ spring:
               uri: ${PEDIDO_SERVICE_URL:http://localhost:8084}
               predicates:
                 - Path=/api/pedidos/**
+            - id: pago-service
+              uri: ${PAGO_SERVICE_URL:http://localhost:8085}
+              predicates:
+                - Path=/api/pagos/**
             # SOAP de la tienda (ProductoEndpoint) y su WSDL, enrutados tambien
             # por el punto de entrada unico.
             - id: producto-service-soap

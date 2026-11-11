@@ -37,6 +37,7 @@ import com.unibague.users.exception.ResourceNotFoundException;
 import com.unibague.users.service.UserProfileService;
 import com.unibague.users.support.TestJwtFactory;
 import com.unibague.users.support.TestRsaKeys;
+import com.unibague.users.support.TestSecurityConfig;
 
 /**
  * Matriz de autorización del contrato del taller con tokens RS256 reales:
@@ -44,7 +45,7 @@ import com.unibague.users.support.TestRsaKeys;
  * y 200/201/204/400/409 para los casos correspondientes.
  */
 @WebMvcTest(UserController.class)
-@Import(SecurityConfig.class)
+@Import({SecurityConfig.class, TestSecurityConfig.class})
 class UserControllerTest {
 
     private static final UUID STUDENT_ID = UUID.randomUUID();

@@ -30,6 +30,7 @@ import com.unibague.pedidoservice.dto.PedidoResponse;
 import com.unibague.pedidoservice.service.PedidoService;
 import com.unibague.pedidoservice.support.TestJwtFactory;
 import com.unibague.pedidoservice.support.TestRsaKeys;
+import com.unibague.pedidoservice.support.TestSecurityConfig;
 
 /**
  * Matriz de seguridad de pedidos con la cadena de filtros real:
@@ -37,7 +38,7 @@ import com.unibague.pedidoservice.support.TestRsaKeys;
  * Se conserva el contrato original (POST con query params).
  */
 @WebMvcTest(PedidoRestController.class)
-@Import(SecurityConfig.class)
+@Import({SecurityConfig.class, TestSecurityConfig.class})
 class PedidoRestControllerTest {
 
     private String userToken;

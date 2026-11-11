@@ -11,6 +11,8 @@ pedido-service/src/main/resources/keys/*.pem
 .vscode/
 *.iml
 .env
+.k8s-env
+.k8s-secrets/
 .DS_Store
 
 # SOAP: clases generadas por el plugin JAXB (se regeneran en cada build)

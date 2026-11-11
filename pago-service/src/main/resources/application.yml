@@ -1,0 +1,48 @@
+server:
+  port: 8085
+
+spring:
+  application:
+    name: pago-service
+  datasource:
+    url: ${PAGOS_DB_URL:jdbc:postgresql://localhost:5437/pagos_db}
+    username: ${PAGOS_DB_USERNAME:postgres}
+    password: ${PAGOS_DB_PASSWORD:postgres}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+  jackson:
+    default-property-inclusion: non_null
+  # Identidad: OAuth 2.0 / OpenID Connect con Keycloak (emisor unico).
+  # En Kubernetes se inyecta KEYCLOAK_ISSUER_URI=http://keycloak:8080/realms/tienda-deportiva
+  # (DNS interno de k8s, nunca localhost entre pods).
+  security:
+    oauth2:
+      resourceserver:
+        oidc:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8080/realms/tienda-deportiva}
+
+# Contratos de pago (decisiones de diseño propias del Proyecto 03, documentadas
+# en docs/ARCHITECTURE.md y docs/SECURITY.md). No hay integracion externa real.
+pago:
+  webhook:
+    # El HMAC se genera con OpenSSL (scripts/generate-rsa-keys.sh adaptado) y se
+    # inyecta por variable de entorno PAYMENT_WEBHOOK_SECRET. Nunca en Git.
+    secret: ${PAYMENT_WEBHOOK_SECRET:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
